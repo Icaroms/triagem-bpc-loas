@@ -1,8 +1,9 @@
 /**
  * ============================================================================
- * COMPONENTE RAIZ: App (v4 — Triagem + Histórico + Estatísticas)
+ * COMPONENTE RAIZ: App (Final — Todas as abas)
  * ============================================================================
- * Adiciona dashboard de Estatísticas com gráficos Recharts.
+ * Gerencia o estado global e orquestra todos os componentes.
+ * Os dados fluem top-down via props; mutações sobem via callbacks.
  */
 import { useState } from 'react';
 import { getTheme } from './styles/theme';
@@ -15,11 +16,12 @@ import Footer from './components/Footer';
 import TabTriagem from './components/TabTriagem';
 import TabHistorico from './components/TabHistorico';
 import TabEstatisticas from './components/TabEstatisticas';
+import TabCID from './components/TabCID';
 
 export default function App() {
   const [dark, setDark] = useState(false);
   const [tab, setTab] = useState(0);
-  const [cidDb] = useState(CID_DATABASE_INITIAL);
+  const [cidDb, setCidDb] = useState(CID_DATABASE_INITIAL);
   const [history, setHistory] = useState(() => buildHistory(CID_DATABASE_INITIAL));
 
   const theme = getTheme(dark);
@@ -32,13 +34,7 @@ export default function App() {
         {tab === 0 && <TabTriagem dark={dark} theme={theme} cidDb={cidDb} setHistory={setHistory} />}
         {tab === 1 && <TabHistorico theme={theme} history={history} setHistory={setHistory} cidDb={cidDb} />}
         {tab === 2 && <TabEstatisticas theme={theme} history={history} cidDb={cidDb} />}
-        {tab === 3 && (
-          <div style={{ background: theme.card, borderRadius: 16, padding: 40, boxShadow: theme.shadow, border: '1px solid ' + theme.border, textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🏥</div>
-            <h2 style={{ margin: '0 0 8px', color: theme.text, fontSize: 20 }}>CID-10</h2>
-            <p style={{ color: theme.textMuted, fontSize: 14 }}>Módulo em desenvolvimento...</p>
-          </div>
-        )}
+        {tab === 3 && <TabCID theme={theme} cidDb={cidDb} setCidDb={setCidDb} />}
       </div>
       <Footer theme={theme} />
     </div>
