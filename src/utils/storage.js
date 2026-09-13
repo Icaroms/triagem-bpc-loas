@@ -22,7 +22,7 @@
 const PREFIX = 'triagem_bpc';
 
 /** Versão atual do schema de dados. Incrementar ao mudar a estrutura. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Chaves utilizadas pela aplicação */
 export const KEYS = {
@@ -30,6 +30,9 @@ export const KEYS = {
   CID_DB: 'cidDb',
   SCHEMA: 'schemaVersion',
   THEME: 'theme',
+  USERS: 'users',      // v2 — cadastro de usuários (salt + hash)
+  SESSION: 'session',  // v2 — sessão ativa
+  AUDIT: 'audit',      // v2 — log de auditoria
 };
 
 /** Monta a chave completa com prefixo */
@@ -103,13 +106,17 @@ export function removeItem(key) {
 
 /**
  * Apaga todos os dados da aplicação, preservando chaves de outras apps.
- * Usado na função "excluir todos os dados" exigida pela LGPD.
+ * Usado na função de eliminação de dados exigida pela LGPD (Art. 18, VI).
+ *
+ * @param {string[]} [except] — Chaves a preservar (ex.: usuários, para não
+ *   deixar o sistema sem administrador ao limpar a base de atendimentos)
  */
-export function clearAll() {
+export function clearAll(except = []) {
   try {
-    const keys = Object.keys(window.localStorage)
-      .filter((k) => k.startsWith(`${PREFIX}:`));
-    keys.forEach((k) => window.localStorage.removeItem(k));
+    const preserved = except.map(fullKey);
+    Object.keys(window.localStorage)
+      .filter((k) => k.startsWith(`${PREFIX}:`) && !preserved.includes(k))
+      .forEach((k) => window.localStorage.removeItem(k));
     return true;
   } catch (err) {
     console.warn('[storage] Falha ao limpar dados:', err);
@@ -120,8 +127,7 @@ export function clearAll() {
 /**
  * Garante que o schema armazenado é compatível com o da aplicação.
  * Se a versão for anterior, aplica as migrações necessárias.
- * Se não houver versão registrada, considera primeira execução.
- * @returns {{firstRun: boolean, migrated: boolean}}
+ * @returns {{firstRun: boolean, migrated: boolean, from: number|null}}
  */
 export function ensureSchema() {
   const stored = readItem(KEYS.SCHEMA, null);
@@ -129,19 +135,25 @@ export function ensureSchema() {
   // Primeira execução — nenhum dado anterior
   if (stored === null) {
     writeItem(KEYS.SCHEMA, SCHEMA_VERSION);
-    return { firstRun: true, migrated: false };
+    return { firstRun: true, migrated: false, from: null };
   }
 
   // Schema atualizado — nada a fazer
   if (stored === SCHEMA_VERSION) {
-    return { firstRun: false, migrated: false };
+    return { firstRun: false, migrated: false, from: stored };
   }
 
-  // Schema anterior — ponto de extensão para migrações futuras.
-  // Exemplo de uso quando SCHEMA_VERSION passar para 2:
-  //   if (stored < 2) { migrarParaV2(); }
+  // --- MIGRAÇÕES ---
+  // v1 → v2: introdução de usuários, sessão e auditoria.
+  // Não há transformação de dados existentes; as chaves novas nascem vazias
+  // e o fluxo de configuração inicial cria o primeiro administrador.
+  if (stored < 2) {
+    if (readItem(KEYS.USERS, null) === null) writeItem(KEYS.USERS, []);
+    if (readItem(KEYS.AUDIT, null) === null) writeItem(KEYS.AUDIT, []);
+  }
+
   writeItem(KEYS.SCHEMA, SCHEMA_VERSION);
-  return { firstRun: false, migrated: true };
+  return { firstRun: false, migrated: true, from: stored };
 }
 
 /**
@@ -172,8 +184,11 @@ export function getStorageSize() {
 // ============================================================================
 
 /**
- * Gera um arquivo JSON com todos os dados da aplicação e dispara o download.
- * Permite ao escritório manter cópia de segurança fora do navegador.
+ * Gera um arquivo JSON com os dados da aplicação e dispara o download.
+ *
+ * IMPORTANTE: credenciais de usuário NÃO são exportadas. Um backup que
+ * carregasse salt e hash espalharia material de autenticação por pen drives
+ * e e-mails. O backup cobre apenas atendimentos e base CID-10.
  */
 export function exportBackup() {
   const payload = {
@@ -200,8 +215,7 @@ export function exportBackup() {
 
 /**
  * Lê um arquivo de backup e valida sua estrutura antes de restaurar.
- * Não grava nada — apenas devolve os dados validados para a camada de UI
- * decidir o que fazer (a confirmação do usuário é responsabilidade dela).
+ * Não grava nada — apenas devolve os dados validados para a camada de UI.
  *
  * @param {File} file — Arquivo JSON selecionado pelo usuário
  * @returns {Promise<{history: Array, cidDb: Array, exportedAt: string}>}
@@ -215,15 +229,12 @@ export function parseBackupFile(file) {
       try {
         const parsed = JSON.parse(reader.result);
 
-        // Validação de origem
         if (parsed.app !== 'triagem-bpc-loas') {
           throw new Error('Arquivo não pertence a este sistema.');
         }
-        // Validação de compatibilidade de schema
         if (parsed.schemaVersion > SCHEMA_VERSION) {
           throw new Error('Backup gerado por versão mais recente do sistema.');
         }
-        // Validação de forma
         const history = parsed.data?.[KEYS.HISTORY];
         const cidDb = parsed.data?.[KEYS.CID_DB];
         if (!Array.isArray(history) || !Array.isArray(cidDb)) {

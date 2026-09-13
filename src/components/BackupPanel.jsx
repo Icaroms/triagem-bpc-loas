@@ -24,8 +24,9 @@ import {
   getStorageSize, isStorageAvailable,
 } from '../utils/storage';
 import { sCard, sBtn } from '../styles/shared';
+import { logAction } from '../utils/audit';
 
-export default function BackupPanel({ theme: t, onRestore, onClearAll }) {
+export default function BackupPanel({ theme: t, onRestore, onClearAll, session }) {
   const [feedback, setFeedback] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -78,7 +79,7 @@ export default function BackupPanel({ theme: t, onRestore, onClearAll }) {
     );
     if (!second) return;
 
-    clearAll();
+    clearAll(['users', 'session', 'audit']);
     onClearAll();
     notify('success', 'Todos os dados foram excluídos.');
   };
@@ -145,7 +146,7 @@ export default function BackupPanel({ theme: t, onRestore, onClearAll }) {
 
       {/* Ações */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button style={sBtn(t.accent)} onClick={exportBackup}>
+        <button style={sBtn(t.accent)} onClick={() => { exportBackup(); logAction('BACKUP_EXPORT', { username: session?.username }); }}>
           <Download size={16} /> EXPORTAR BACKUP
         </button>
 

@@ -11,12 +11,13 @@
 import { useState } from 'react';
 import { Search, Trash2, Download, Clock, AlertTriangle } from 'lucide-react';
 import { getScoreColor, exportCSV } from '../utils';
+import { logAction } from '../utils/audit';
 import { sCard, sInput, sBtn } from '../styles/shared';
 import BackupPanel from './BackupPanel';
 
 export default function TabHistorico({
   theme: t, history, setHistory, cidDb,
-  storagePersisted, onRestore, onClearAll,
+  storagePersisted, onRestore, onClearAll, session,
 }) {
   const [search, setSearch] = useState('');
 
@@ -59,12 +60,12 @@ export default function TabHistorico({
           />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button style={sBtn(t.accent, true)} onClick={() => exportCSV(filtered, 'historico_triagens.csv')}>
+          <button style={sBtn(t.accent, true)} onClick={() => { exportCSV(filtered, 'historico_triagens.csv'); logAction('CSV_EXPORT', { username: session?.username, note: `${filtered.length} registros` }); }}>
             <Download size={16} /> CSV
           </button>
           <button
             style={sBtn(t.danger, true)}
-            onClick={() => { if (confirm('Excluir todo o histórico?')) setHistory([]); }}
+            onClick={() => { if (confirm('Excluir todo o histórico?')) { setHistory([]); logAction('HISTORY_CLEAR', { username: session?.username }); } }}
           >
             <Trash2 size={16} /> LIMPAR
           </button>
@@ -124,7 +125,7 @@ export default function TabHistorico({
                 </div>
                 <button
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.danger, padding: 4 }}
-                  onClick={() => setHistory((prev) => prev.filter((x) => x.id !== h.id))}
+                  onClick={() => { if (!confirm(`Excluir o atendimento de ${h.name}?`)) return; setHistory((prev) => prev.filter((x) => x.id !== h.id)); logAction('TRIAGEM_DELETE', { username: session?.username, ref: `#${h.id}` }); }}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -135,7 +136,7 @@ export default function TabHistorico({
       </div>
 
       {/* Painel de backup e gestão de dados */}
-      <BackupPanel theme={t} onRestore={onRestore} onClearAll={onClearAll} />
+      <BackupPanel theme={t} onRestore={onRestore} onClearAll={onClearAll} session={session} />
     </div>
   );
 }
