@@ -1,179 +1,116 @@
-# ⚖️ Triagem BPC/LOAS — Sistema de Análise de Viabilidade
+# Triagem BPC/LOAS
 
-> **Projeto de Extensão II** — Curso de Análise e Desenvolvimento de Sistemas  
-> Escritório: Advocacia Humanizada Dr. Egberto Frazão
+Sistema web de triagem para benefícios assistenciais, desenvolvido como Projeto de Extensão do curso de Análise e Desenvolvimento de Sistemas em parceria com a Advocacia Humanizada Dr. Egberto Frazão, em Manaus.
 
----
+O escritório atende principalmente idosos e pessoas com deficiência que buscam o BPC/LOAS. Boa parte dos requerimentos acabava indeferida pelo INSS, e a triagem inicial era feita apenas com base na experiência de quem atendia, sem critério objetivo. O sistema nasceu para dar esse critério.
 
-## 📋 Sobre o Projeto
+## O que ele faz
 
-Sistema web de triagem para benefícios previdenciários **BPC/LOAS** (Benefício de Prestação Continuada / Lei Orgânica de Assistência Social), desenvolvido como Projeto de Extensão Universitária para um escritório de advocacia previdenciária.
+Coleta os dados do cliente durante o atendimento e calcula um score de viabilidade de 0 a 100, indicando se o caso tem chance real pela via administrativa ou se vale considerar a via judicial desde o início.
 
-O sistema realiza a análise de viabilidade do requerimento administrativo do BPC com base em critérios como renda per capita, situação do CadÚnico, laudo médico e histórico de deferimento por CID-10, gerando um **score de viabilidade** e **feedback inteligente** com recomendações — incluindo a sugestão de via judicial quando a taxa administrativa é baixa.
+O cálculo leva em conta renda per capita, situação do CadÚnico, qualidade do laudo médico e a taxa histórica de deferimento do CID informado. Combinações ruins recebem penalidade cumulativa, para que o score não gere falsa confiança.
 
-### Tipos de Benefício
+### Os dois tipos de benefício
 
-| Benefício | Público | Critérios |
-|-----------|---------|-----------|
-| **BPC 87** | Pessoa com Deficiência | Renda + CadÚnico + Laudo Médico + CID-10 |
-| **BPC 88** | Idoso (≥65 anos) | Renda + CadÚnico + Idade (miserabilidade) |
+O sistema identifica automaticamente qual benefício se aplica a partir da data de nascimento.
 
----
+**BPC 87** vale para pessoa com deficiência. Exige laudo médico e CID, e o histórico de deferimento daquele CID pesa bastante no resultado.
 
-## 🎯 ODS da ONU Vinculadas
+**BPC 88** vale para idoso a partir de 65 anos. Aqui a análise é só de miserabilidade e idade, então os campos de CID e laudo ficam bloqueados. Não faz sentido pedir laudo para quem se enquadra por idade.
 
-- **ODS 1** — Erradicação da Pobreza
-- **ODS 10** — Redução das Desigualdades
-- **ODS 16** — Paz, Justiça e Instituições Eficazes
+## Funcionalidades
 
----
+**Triagem.** Formulário com validação de CPF, nome e renda. Verifica se o CadÚnico está dentro do prazo de dois anos e avisa quando falta menos de 90 dias para vencer. Ao final entrega o score com semáforo visual e um parecer explicando cada ponto que pesou.
 
-## 🖥️ Funcionalidades
+**Histórico.** Lista todos os atendimentos com busca por nome, CID ou data. Marca com um selo os casos em que a via judicial tende a ser mais efetiva. Exporta para CSV.
 
-### Aba 1 — Triagem
-- Formulário com validações (CPF formatado, nome em caixa alta, renda com limite de ¼ do salário mínimo)
-- Data de nascimento com detecção automática do tipo de BPC (87 ou 88)
-- Campos de CID e laudo **bloqueados automaticamente** para BPC 88 (idoso)
-- Validação de CadÚnico com prazo de 2 anos e alerta de proximidade de vencimento (≤90 dias)
-- Sistema de scoring (0-100) com semáforo visual 🟢🟡🔴
-- Feedback inteligente com recomendações e sugestão de via judicial
-- Botão de impressão do resultado
+**Estatísticas.** Painel com os CIDs mais frequentes, distribuição por viabilidade, volume diário e proporção entre os dois tipos de benefício.
 
-### Aba 2 — Histórico
-- Lista de todos os clientes triados com busca por nome, CID ou data
-- CPF mascarado para proteção de dados (ex.: 030.***.***-67)
-- Badge "⚖️ VIA JUDICIAL" para clientes com CID de baixa taxa administrativa
-- Horário de atendimento registrado
-- Exclusão individual ou total
-- Exportação para CSV (compatível com Excel)
+**Base CID-10.** Vinte e nove CIDs com taxas de deferimento administrativo, editáveis pelo escritório conforme novos casos são resolvidos. CIDs com menos de cinco casos não entram na análise, porque um caso deferido em um total de um geraria uma taxa de 100% que não significa nada.
 
-### Aba 3 — Estatísticas
-- Cards resumo: total, alta/média/baixa viabilidade, sugestões judiciais
-- Gráfico de CIDs mais triados
-- Distribuição por viabilidade (pizza)
-- Triagens diárias (barras)
-- Distribuição BPC 87 x 88 (pizza)
-- Score médio geral
-- Botão de impressão do relatório
+**Sistema.** Área restrita ao administrador, com gestão de usuários, log de auditoria e a documentação de conformidade com a LGPD.
 
-### Aba 4 — Base CID-10
-- 29 CIDs cadastrados com taxas de deferimento administrativo
-- CRUD completo (adicionar, editar, excluir)
-- Trava de mínimo 5 casos para consistência estatística
-- Badge "PREFERIR JUDICIAL" para CIDs com taxa < 25%
-- Busca por código ou nome
+## Segurança e proteção de dados
 
-### Recursos Gerais
-- Modo claro / escuro
-- Interface responsiva
-- Código 100% comentado
+O sistema lida com CPF e diagnóstico médico, que a LGPD classifica como dado pessoal sensível. As medidas adotadas:
 
----
+O acesso exige autenticação. As senhas passam por PBKDF2 com SHA-256, 150 mil iterações e salt individual, usando a Web Crypto API do próprio navegador. A senha em si nunca é gravada. Cinco tentativas erradas bloqueiam o usuário por cinco minutos.
 
-## 🧮 Sistema de Scoring
+Não existe senha padrão no código. Na primeira execução o sistema pede a criação do administrador. Deixar `admin/admin` em um repositório público seria abrir a porta antes de instalar a fechadura.
 
-### BPC 87 (Pessoa com Deficiência) — Máximo: 100 pontos
+Há dois perfis. O administrador vê tudo, o atendente trabalha nas triagens e consultas mas não acessa a área de sistema.
 
-| Critério | Pontuação |
-|----------|-----------|
-| Renda ≤ ¼ salário mínimo | +15 |
-| CadÚnico válido | +12 |
-| Laudo atualizado (6 meses) | +18 |
-| Confirmação PcD | +10 |
-| Taxa CID (proporcional) | até +35 |
-| **Penalidade:** CID taxa < 25% | -10 |
-| **Penalidade:** Laudo ruim + CID < 40% | -8 |
-| **Penalidade:** Dupla falha documental | -5 |
-| **Penalidade:** Renda acima do limite | -10 |
+A sessão encerra sozinha depois de quinze minutos parada. São dez estações no escritório, e tela destravada é o jeito mais provável de alguém ver o que não deveria.
 
-### BPC 88 (Idoso) — Máximo: 100 pontos
+O CPF é gravado mascarado, no formato `030.***.***-67`. O número completo continua no contrato e nos autos, que é onde ele precisa estar.
 
-| Critério | Pontuação |
-|----------|-----------|
-| Renda ≤ ¼ salário mínimo | +40 |
-| CadÚnico válido | +35 |
-| Idade ≥ 65 anos | +25 |
-| **Penalidade:** Renda acima do limite | -15 |
-| **Penalidade:** CadÚnico inválido | -10 |
+Toda operação sobre a base fica registrada em log com autor e data. O log não copia nome, CPF nem CID. Ele guarda quem fez, o que fez e o identificador interno do registro, o que basta para auditar sem espalhar dado sensível por mais um lugar.
 
-### Classificação
+O backup exportado não inclui usuários nem senhas.
 
-| Score | Classificação | Cor |
-|-------|--------------|-----|
-| ≥ 70 | Alta Viabilidade | 🟢 Verde |
-| 45–69 | Média Viabilidade | 🟡 Amarelo |
-| < 45 | Baixa Viabilidade | 🔴 Vermelho |
+## Limitações conhecidas
 
----
+Vale ser direto sobre o que este protótipo não resolve.
 
-## 🛠️ Tecnologias Utilizadas
+A autenticação roda inteiramente no navegador. Ela separa o acesso entre colegas de um ambiente de confiança, mas não segura quem sabe abrir o console do desenvolvedor. Segurança de verdade exige um servidor validando as credenciais.
 
-- **React** — Interface componentizada
-- **Recharts** — Gráficos e visualizações
-- **Lucide React** — Ícones
-- **CSS-in-JS** — Estilização inline com suporte a temas
+Os dados ficam no armazenamento local do navegador, sem criptografia em repouso. Cada máquina tem sua própria base, então as dez estações não compartilham informação.
 
----
+Não há registro formal de consentimento assinado pelo titular dentro do sistema.
 
-## 🚀 Como Executar
+Os backups saem em JSON sem cifragem e precisam ficar guardados em local controlado.
 
-Este projeto foi desenvolvido como um componente React standalone. Para executar localmente:
+Resolver esses pontos depende de backend com banco de dados e autenticação no servidor, que está no plano de evolução.
 
-1. Clone o repositório:
+## Como rodar
+
+Precisa do Node.js instalado.
+
 ```bash
-git clone https://github.com/seu-usuario/triagem-bpc-loas.git
+git clone https://github.com/Icaroms/triagem-bpc-loas.git
 cd triagem-bpc-loas
+npm install
+npm run dev
 ```
 
-2. Instale as dependências:
+O navegador abre em `http://localhost:3000`. Na primeira vez o sistema pede a criação do usuário administrador.
+
+Para gerar a versão de produção:
+
 ```bash
-npm install react react-dom recharts lucide-react
+npm run build
 ```
 
-3. Importe o componente no seu projeto React:
-```jsx
-import TriagemBPC from './triagem-bpc';
+## Stack
 
-function App() {
-  return <TriagemBPC />;
-}
+React 18 com Vite, Recharts para os gráficos e Lucide para os ícones. A persistência usa a API de armazenamento local do navegador, isolada em uma camada própria para que a migração futura para banco de dados mexa em um arquivo só.
+
+## Estrutura
+
+```
+src/
+├── components/     Interface e abas do sistema
+├── utils/          Regras de negócio, scoring, segurança e persistência
+├── hooks/          Estado persistido e controle de sessão
+├── data/           Base CID-10 e histórico de referência
+├── styles/         Temas e estilos compartilhados
+└── constants/      Valores de referência
 ```
 
----
+A lógica de cálculo fica separada da interface. O arquivo `scoring.js` concentra as regras dos dois tipos de benefício e pode ser alterado sem tocar em nenhum componente.
 
-## 📊 Dados
+## Sobre os dados
 
-> ⚠️ **Todos os dados contidos neste projeto são simulados para fins acadêmicos.**  
-> CPFs são fictícios e não passam validação real. Nomes e informações de clientes  
-> foram criados exclusivamente para demonstração do protótipo.  
-> Taxas de deferimento por CID são estimativas baseadas em literatura e  
-> experiência do escritório, não devendo ser utilizadas como referência jurídica.
+Os CPFs no histórico de referência são fictícios e não passam validação. Os nomes e as taxas por CID foram construídos para demonstração acadêmica e não devem ser usados como referência jurídica.
 
----
+## Próximos passos
 
-## 🔮 Melhorias Futuras
+Backend com banco de dados para que as estações compartilhem a base. Autenticação no servidor. Criptografia em repouso. Notificação automática quando o CadÚnico de um cliente estiver perto de vencer. Acompanhamento pós-triagem, para que o resultado final de cada requerimento volte e atualize sozinho as taxas por CID, fechando o ciclo que hoje ainda depende de alguém editar na mão.
 
-- [ ] Backend com banco de dados (PostgreSQL / Firebase)
-- [ ] Autenticação de usuários (login/senha)
-- [ ] Persistência de dados em nuvem
-- [ ] Notificações automáticas de vencimento do CadÚnico
-- [ ] Integração com API do INSS para consulta de processos
-- [ ] Dashboard avançado com filtros por período
-- [ ] Relatórios PDF exportáveis
-- [ ] Módulo de acompanhamento pós-triagem
-- [ ] App mobile (React Native)
-- [ ] Integração com IA para análise preditiva de jurisprudência
+## Sistema no ar
 
----
+https://triagem-bpc-loas.vercel.app
 
-## 📄 Licença
+## Licença
 
-Projeto acadêmico — Projeto de Extensão II  
-Curso de Análise e Desenvolvimento de Sistemas
-
----
-
-## 👤 Autor
-
-Desenvolvido como Projeto de Extensão Universitária (PEX II)  
-Escritório parceiro: **Advocacia Humanizada Dr. Egberto Frazão**
+MIT. Projeto acadêmico desenvolvido para o Projeto de Extensão do curso de Análise e Desenvolvimento de Sistemas.
